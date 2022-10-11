@@ -36,29 +36,50 @@ class UBXmessage(object):
     )
 
     ),
-    (b'\x02', "RXM"),
-    (b'\x04', "INF"),
-    (b'\x05', "ACK"),
-    (b'\x06', "CFG"),
-    (b'\x09', 'UPD'),
-    (b'\x0A', "MON"),
-    (b'\x0B', "AID"),
-    (b'\x0D', "TIM"),
-    (b'\x13', "MGA"),
-    (b'\x21', "LOG"),
-    (b'\x27', "SEC")
+    (b'\x02', "RXM", (
+
+    )),
+    (b'\x04', "INF", (
+
+    )),
+    (b'\x05', "ACK", (
+
+    )),
+    (b'\x06', "CFG", (
+
+    )),
+    (b'\x09', 'UPD', (
+
+    )),
+    (b'\x0A', "MON", (
+
+    )),
+    (b'\x0B', "AID", (
+
+    )),
+    (b'\x0D', "TIM", (
+
+    )),
+    (b'\x13', "MGA", (
+
+    )),
+    (b'\x21', "LOG", (
+
+    )),
+    (b'\x27', "SEC", (
+
+    ))
     )
 
     def __new__(cls, **kwargs):
         bin = False
-        print(kwargs)
         for k, val in kwargs.items():
             if k == "bin":
                 bin = True
 
+
         if bin:
-            cls.bin = kwargs['bin']
-            if cls.bin[0:2] == cls.pream:
+            if kwargs['bin'][0:2] == cls.pream:
                 return cls._preprocess(cls, **kwargs)
             else:
                 raise Exception()
@@ -68,17 +89,44 @@ class UBXmessage(object):
     def _preprocess(self, **kwargs):
 
         for c in self.classes:
-            if c[0] == self.bin[2:3]:
-                print(c[2])
+            if c[0] == kwargs['bin'][2:3]:
                 for i in c[2]:
-                    print(i[0])
-                    if i[0] == self.bin[3:4]:
-                        return eval("UBX_" + c[1]  + "_" + i[1] + "(**kwargs)")
+                    if i[0] == kwargs['bin'][3:4]:
+                        try:
+                            a = eval("UBX_" + c[1]  + "_" + i[1] + "(**kwargs)")
+                            print(a.bin)
+                        except NameError as er:
+                            print(er)
+
 
 class UBX(object):
-
+    pream = b'\xB5\x62'
+    data = {}
     def __init__(self, **kwargs):
-        pass
+        print("XXXXXXXXXXXXXXXXXXX")
+        print(self.data)
+        bin = False
+        for k, val in kwargs.items():
+            if k == "bin":
+                bin = True
+
+        if bin:
+            self.bin = kwargs['bin']
+            if self.bin[0:2] == self.pream:
+                self.classid = self.bin[2:3]
+                self.id = self.bin[3:4]
+                self.len = self.unsigned_int(self.bin[4:6])
+                self.payload = self.bin[6:6+self.len]
+                self.cs = self.bin[6+self.len:6+self.len+2]
+
+                if self.cs == self._checksum(self.bin[2:6+self.len]):
+                    self.decode()
+                else:
+                    raise Exception()
+            else:
+                raise Exception()
+        else:
+            pass
 
     def _checksum(self, msg):
         cs_a = 0
@@ -97,9 +145,52 @@ class UBX(object):
         return cs_a + cs_b
 
     def encode(self):
-        pass
+        print()
     def decode(self):
-        pass
+        print(self.data)
+        print("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
+        domain_shift = 0
+        i = None
+        j = None
+        for e in self.payload_struct:
+            if e[0] == "reserved":
+                continue
+            elif e[0] == "repeat":
+                i = 0
+                j = 0
+                name = e[2]
+                num = self.data[e[1]]
+                self.data[name] = []
+                for k in range(0,num):
+                    self.data[name].append({})
+                print(self.data)
+
+                tags = e[3]
+                continue
+            elif e[0] == "stop":
+                continue
+
+            if e[1] == "U":
+                value = self.unsigned_int(self.payload[domain_shift:domain_shift+e[2]], e[3])
+            elif e[1] == "S":
+                value = self.signed_int(self.payload[domain_shift:domain_shift+e[2]], e[3])
+            else:
+                raise TypeError("Unknown type!")
+            if i == None:
+                self.data[e[0]] = value
+            else:
+                self.data[name][i] = value
+                j = j + 1
+                if j == tags:
+                    i = i + 1
+                    j = 0
+
+
+
+            domain_shift = domain_shift + e[2]
+        #self.iTOW = self.unsigned_int(self.payload[0:4])
+
+        print(self.data)
 
     def unsigned_int(self, bin, scale=1):
 
@@ -128,7 +219,7 @@ class UBX(object):
 
 class UBX_NAV(UBX):
 
-    class_byte = 0x01
+    #class_byte = 0x01
 
     struct = ("U1", "U1", "U1", "U1", "U4", "I4", "I4", "I4", "I1e_2", )
 
@@ -140,27 +231,79 @@ class UBX_NAV(UBX):
 
                 return eval("UBX_NAV_" + c[1] + "(**kwargs)")
 
-class UBX_NAV_POSECEF(UBX_NAV):
+class UBX_NAV_CLOCK(UBX_NAV):
+
+    payload_struct = [
+    ("iTOW", "U", 4, 1),
+    ("clkB", "S", 4, 1),
+    ("clkD", "S", 4, 1),
+    ("tAcc", "U", 4, 1),
+    ("fAcc", "U", 4, 1)
+    ]
+class UBX_NAV_DOP(UBX_NAV):
+
+    payload_struct = [
+    ("iTOW", "U", 2, 0.01),
+    ("gDOP", "U", 2, 0.01),
+    ("pDOP", "U", 2, 0.01),
+    ("tDOP", "U", 2, 0.01),
+    ("vDOP", "U", 2, 0.01),
+    ("hDOP", "U", 2, 0.01),
+    ("nDOP", "U", 2, 0.01),
+    ("eDOP", "U", 2, 0.01)
+    ]
+
+class UBX_NAV_EOE(UBX_NAV):
+
+    payload_struct = [
+    ("iTOW", "U", 4, 1)
+    ]
+
+class UBX_NAV_GEOFENCE(UBX_NAV):
+
+    payload_struct = [
+    ("iTOW", "U", 4, 1),
+    ("version", "U", 1, 1),
+    ("status", "U", 1, 1),
+    ("numFences", "U", 2, 1),
+    ("combState", "U", 2, 1),
+    ("repeat", "numFences", "fences", 2),
+    ("state", "U", 1, 1),
+    ("reserved", "U", 1, 1),
+    ("stop")
+    ]
+
+#class UBX_NAV_POSECEF(UBX_NAV):
 
 
-    ID = b'\x13'
+
+    #ID = b'\x13'
 
     #def __init__(self):
     #    pass
 
-    def _preprocess(self, **kwargs):
-        pass#for
 
-    def _decode(self):
-        pass
+#    def _decode(self):pass
 
-msg = UBXmessage(bin=b'\xB5\x62\x01\x01\x09')
 
-print(msg)
+class UBX_NAV_POSLLH(UBX_NAV):
 
-#print(msg.bitfield(b'\xd7', ((2, 'U'),(2, 'U'),(2, 'U'),(2, 'U'))))
+    payload_struct = [
+    ("iTOW", "U", 4, 1),
+    ("lon", "S", 4, 10**-7),
+    ("lat", "S", 4, 10**-7),
+    ("height_ell", "S", 4, 1),
+    ("height_sea", "S", 4, 1),
+    ("hz_acc", "U", 4, 1),
+    ("v_acc", "U", 4, 1)
+    ]
 
-print(msg._checksum(b'\x12\xab\x12\x01\x13\xab\x12\xab\x12\xab\x12\xab\x12\xab\x12\xab\x12\xab\x12\xab\xab\xab\xab\xab\xab\xab\xab\xab\xab\xab\xab\xab\xab\xab\xab\xab\xab\xab\xab\xab\xab\xab\xab\xab\xab\xab\xab\xab\xab\xab\xab\xab\xab\xab\xab\xab'))
+
+
+#class UBX_NAV_HPPOSLLH(UBX_NAV):
+#    pass
+
+
 
 
 
