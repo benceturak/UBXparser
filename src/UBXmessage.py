@@ -101,8 +101,9 @@ class UBXmessage(object):
 
 class UBX(object):
     pream = b'\xB5\x62'
-    data = {}
+
     def __init__(self, **kwargs):
+        self.data = {}
         print("XXXXXXXXXXXXXXXXXXX")
         print(self.data)
         bin = False
@@ -147,8 +148,6 @@ class UBX(object):
     def encode(self):
         print()
     def decode(self):
-        print(self.data)
-        print("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
         domain_shift = 0
         i = None
         j = None
@@ -159,10 +158,15 @@ class UBX(object):
                 i = 0
                 j = 0
                 name = e[2]
+                print("aaaaaaa")
+                print(self.data)
                 num = self.data[e[1]]
                 self.data[name] = []
+
+                print(num)
                 for k in range(0,num):
                     self.data[name].append({})
+                    print(k)
                 print(self.data)
 
                 tags = e[3]
@@ -175,15 +179,18 @@ class UBX(object):
             elif e[1] == "S":
                 value = self.signed_int(self.payload[domain_shift:domain_shift+e[2]], e[3])
             else:
-                raise TypeError("Unknown type!")
+                raise TypeError("Unknown type " + e[1] + "!")
             if i == None:
                 self.data[e[0]] = value
             else:
+                if i == num:
+                    continue
                 self.data[name][i] = value
                 j = j + 1
                 if j == tags:
                     i = i + 1
                     j = 0
+
 
 
 
@@ -270,7 +277,41 @@ class UBX_NAV_GEOFENCE(UBX_NAV):
     ("repeat", "numFences", "fences", 2),
     ("state", "U", 1, 1),
     ("reserved", "U", 1, 1),
-    ("stop")
+    ("stop", )
+    ]
+
+class UBX_NAV_HPPOSECEF(UBX_NAV):
+
+    payload_struct = [
+    ("version", "U", 1, 1),
+    ("reserved", "U", 1, 1),
+    ("iTOW", "U", 4, 1),
+    ("ecefX", "S", 4, 1),
+    ("ecefY", "S", 4, 1),
+    ("ecefZ", "S", 4, 1),
+    ("ecefXHp", "S", 1, 0.1),
+    ("ecefYHp", "S", 1, 0.1),
+    ("ecefZHp", "S", 1, 0.1),
+    ("reserved", "U", 1, 1),
+    ("pAcc", "U", 4, 0.1)
+    ]
+
+class UBX_NAV_HPPOSLLH(UBX_NAV):
+
+    payload_struct = [
+    ("version", "U", 1, 1),
+    ("reserved", "U", 1, 1),
+    ("iTOW", "U", 4, 1),
+    ("lon", "S", 4, 10**-7),
+    ("lat", "S", 4, 10**-7),
+    ("height", "S", 4, 1),
+    ("hMSL", "S", 4, 1),
+    ("lonHp", "S", 1, 10**-9),
+    ("latHp", "S", 1, 10**-9),
+    ("heightHp", "S", 1, 0.1),
+    ("hMSLHp", "S", 1, 0.1),
+    ("hAcc", "U", 4, 0.1),
+    ("vAcc", "U", 4, 0.1)
     ]
 
 #class UBX_NAV_POSECEF(UBX_NAV):
@@ -292,8 +333,8 @@ class UBX_NAV_POSLLH(UBX_NAV):
     ("iTOW", "U", 4, 1),
     ("lon", "S", 4, 10**-7),
     ("lat", "S", 4, 10**-7),
-    ("height_ell", "S", 4, 1),
-    ("height_sea", "S", 4, 1),
+    ("height", "S", 4, 1),
+    ("hMSL", "S", 4, 1),
     ("hz_acc", "U", 4, 1),
     ("v_acc", "U", 4, 1)
     ]
