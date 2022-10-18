@@ -13,7 +13,7 @@ class UBXmessage(object):
         (b'\x61', 'EOE'),
         (b'\x39', 'GEOFENCE'),
         (b'\x13', 'HPPOSECEF'),
-        (b'\x14', 'HPPOSLLH'),
+        (b'\x14', 'HPPOSLLH'),#
         (b'\x09', 'ODO'),
         (b'\x34', 'ORB'),
         (b'\x01', 'POSECEF'),
@@ -37,7 +37,12 @@ class UBXmessage(object):
 
     ),
     (b'\x02', "RXM", (
-
+        (b'\x14', 'MEASX'),
+        (b'\x41', 'PMREQ'),
+        (b'\x15', 'RAWX'),
+        (b'\x59', 'RLM'),
+        (b'\x32', 'RTCM'),
+        (b'\x13', 'SFRBX')
     )),
     (b'\x04', "INF", (
 
@@ -116,7 +121,7 @@ class UBX(object):
             if self.bin[0:2] == self.pream:
                 self.classid = self.bin[2:3]
                 self.id = self.bin[3:4]
-                self.len = self.unsigned_int(self.bin[4:6])
+                self.len = self.bytes2uint(self.bin[4:6])
                 self.payload = self.bin[6:6+self.len]
                 self.cs = self.bin[6+self.len:6+self.len+2]
 
@@ -174,10 +179,16 @@ class UBX(object):
             elif e[0] == "stop":
                 continue
 
-            if e[1] == "U":
-                value = self.unsigned_int(self.payload[domain_shift:domain_shift+e[2]], e[3])
-            elif e[1] == "S":
-                value = self.signed_int(self.payload[domain_shift:domain_shift+e[2]], e[3])
+            if e[1] == "U":#process bytes as unsigned integer
+                value = self.bytes2uint(self.payload[domain_shift:domain_shift+e[2]], e[3])
+            elif e[1] == "S":#process bytes as signed integer
+                value = self.bytes2sint(self.payload[domain_shift:domain_shift+e[2]], e[3])
+            elif e[1] == "F":#process bytes as float
+                value = self.bytes2float(self.payload[domain_shift:domain_shift+e[2]], e[3])
+            elif e[1] == "D":#process bytes as double
+                value = self.bytes2double(self.payload[domain_shift:domain_shift+e[2]], e[3])
+            elif e[1] == "X":#process bytes as bitfield
+                value = self.bitfield(self.payload[domain_shift:domain_shift+e[2]], e[3])
             else:
                 raise TypeError("Unknown type " + e[1] + "!")
             if i == None:
@@ -195,32 +206,38 @@ class UBX(object):
 
 
             domain_shift = domain_shift + e[2]
-        #self.iTOW = self.unsigned_int(self.payload[0:4])
+        #self.iTOW = self.bytes2uint(self.payload[0:4])
 
         print(self.data)
 
-    def unsigned_int(self, bin, scale=1):
+    def bytes2uint(self, bin, scale=1):
 
         return int.from_bytes(bin ,byteorder='little', signed=False)*scale
 
-    def signed_int(self, bin, scale=1):
+    def bytes2sint(self, bin, scale=1):
 
         return int.from_bytes(bin ,byteorder='little', signed=True)*scale
+
+    def bytes2float(self, bin, scale=1):
+        return float.from_bytes(bin ,byteorder='little', signed=True)*scale
+
+    def bytes2double(self, bin, scale=1):
+        return double.from_bytes(bin ,byteorder='little', signed=True)*scale
 
     def bitfield(self, bin, fields):
         bits = bitarray(endian='little')
         bits.frombytes(bin)
 
         i = 0
-        res = []
+        res = {}
         for f in fields:
             print(f[0])
             if f[1] == 'S':
                 signed = True
             elif f[1] == 'U':
                 signed = False
-            res.append(int.from_bytes(bits[i:i+f[0]].tobytes(), byteorder='big', signed=signed))
-            i = i + f[0]
+            res[b[0]] = int.from_bytes(bits[i:i+f[2]].tobytes(), byteorder='big', signed=signed)
+            i = i + f[2]
 
         return res
 
@@ -228,7 +245,7 @@ class UBX_NAV(UBX):
 
     #class_byte = 0x01
 
-    struct = ("U1", "U1", "U1", "U1", "U4", "I4", "I4", "I4", "I1e_2", )
+    #struct = ("U1", "U1", "U1", "U1", "U4", "I4", "I4", "I4", "I1e_2", )
 
     #def __init__(self):
     #    pass
@@ -343,6 +360,77 @@ class UBX_NAV_POSLLH(UBX_NAV):
 
 #class UBX_NAV_HPPOSLLH(UBX_NAV):
 #    pass
+
+class UBX_RXM(UBX):
+
+    #class_byte = 0x01
+
+    #struct = ("U1", "U1", "U1", "U1", "U4", "I4", "I4", "I4", "I1e_2", )
+
+    #def __init__(self):
+    #    pass
+    def _preprocess(self, **kwargs):
+        for c in self.IDs:
+            if c[0] == self.bin[3:4]:
+
+                return eval("UBX_NAV_" + c[1] + "(**kwargs)")
+
+class UBX_RXM_RAWX(UBX_RXM):
+
+    payload_struct = [
+    ("rcvTow", "D", 8, 1),
+    ("week", "U", 2, 1),
+    ("leapS", "S", 1, 1),
+    ("numMeas", "U", 1, 1),
+    ("recStat", "X", 1, (
+        ("leapSec", "U", 1),
+        ("clkReset", "U", 1),
+        ("reserved", "U", 6)
+    )),
+    ("version", "U", 1, 1),
+    ("reserved", "U", 1, 1),
+    ("repeat", "numMeas", "measurements", 14),
+    ("prMes", "D", 8, 1),
+    ("cpMes", "D", 8, 1),
+    ("doMes", "F", 4, 1),
+    ("gnssId", "U", 1, 1),
+    ("svId", "U", 1, 1),
+    ("sigId", "U", 1, 1),
+    ("freqId", "U", 1, 1),
+    ("locktime", "U", 2, 1),
+    ("cno", "U", 1, 1),
+    ("prStdev", "X", 1, (
+        ("prStd", "U", 4),
+        ("reserved", "U", 4)
+    )),
+    ("doStdev", "X", 1, (
+        ("cpStd", "U", 4),
+        ("reserved", "U", 4)
+    )),
+    ("trkStat", "X", 1, (
+        ("prValid", "U", 1),
+        ("cpValid", "U", 1),
+        ("halfCyc", "U", 1),
+        ("subhalfCyc", "U", 1),
+        ("reserved", "U", 4)
+    )),
+    ("reserved", "U", 1, 1),
+    ("stop,")
+    ]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
