@@ -21,17 +21,36 @@ class UBXparser(object):
         bin = self.source.read()
 
         msg = b''
+        started = False
+        counter = 0
         for i in range(0, len(bin)):
-            if bin[i:i+2] == self.pream and len(msg) != 0:
-                #print(msg)
-                UBXmsg = UBXmessage(bin=msg)
-                #print(UBXmsg)
 
-                msg = b''
-            msg = msg + bin[i:i+1]
+            if not started:
+                if bin[i:i+2] == self.pream:
+                    started = True
+                    counter = 0
+                    msglen = int.from_bytes(bin[i+4:i+6] ,byteorder='little', signed=False)+8
+                    print(msglen)
+                    msg = b''
+
+            if started:
+                msg = msg + bin[i:i+1]
+                #print(msg)
+                #print(counter)
+                counter = counter + 1
+                    #print(UBXmsg)
+                if counter == msglen:
+                    started = False
+                    try:
+                        UBXmsg = UBXmessage(bin=msg)
+                    except Exception as err:
+                        print(err)
+
+
+
 
 
 if __name__ == "__main__":
-    fid = open("../proba.ubx", 'br')
+    fid = open("../UBXraw.ubx", 'br')
     parser = UBXparser(fid)
     parser.readFile()

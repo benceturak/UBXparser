@@ -1,4 +1,5 @@
 from bitarray import bitarray
+from struct import pack, unpack
 
 #start = bytearray((b'\xB5', b'\x62'))
 
@@ -87,7 +88,7 @@ class UBXmessage(object):
             if kwargs['bin'][0:2] == cls.pream:
                 return cls._preprocess(cls, **kwargs)
             else:
-                raise Exception()
+                raise Exception("Preambulum error!")
         else:
             pass
 
@@ -124,13 +125,15 @@ class UBX(object):
                 self.len = self.bytes2uint(self.bin[4:6])
                 self.payload = self.bin[6:6+self.len]
                 self.cs = self.bin[6+self.len:6+self.len+2]
-
+                print("CHECKSUM")
+                print(self._checksum(self.bin[2:6+self.len]))
+                print(self.cs)
                 if self.cs == self._checksum(self.bin[2:6+self.len]):
                     self.decode()
                 else:
-                    raise Exception()
+                    raise Exception("Checksum error!")
             else:
-                raise Exception()
+                raise Exception("Preambulum error!")
         else:
             pass
 
@@ -156,59 +159,64 @@ class UBX(object):
         domain_shift = 0
         i = None
         j = None
+
         for e in self.payload_struct:
             if e[0] == "reserved":
-                continue
-            elif e[0] == "repeat":
+                domain_shift = domain_shift + e[2]
+            if e[0] == "repeat":
+
+
                 i = 0
                 j = 0
                 name = e[2]
-                print("aaaaaaa")
-                print(self.data)
+                print("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+                ##print(self.data)
                 num = self.data[e[1]]
                 self.data[name] = []
 
-                print(num)
-                for k in range(0,num):
-                    self.data[name].append({})
-                    print(k)
-                print(self.data)
-
-                tags = e[3]
+                self.data[e[2]] = []
+                while num > 0:
+                    for sub in e[3]:
+                        self.data[e[2]].append(self.parseData(self.payload[domain_shift:domain_shift+sub[2]], sub))
+                        domain_shift = domain_shift + sub[2]
+                        num = num - 1
                 continue
-            elif e[0] == "stop":
-                continue
-
-            if e[1] == "U":#process bytes as unsigned integer
-                value = self.bytes2uint(self.payload[domain_shift:domain_shift+e[2]], e[3])
-            elif e[1] == "S":#process bytes as signed integer
-                value = self.bytes2sint(self.payload[domain_shift:domain_shift+e[2]], e[3])
-            elif e[1] == "F":#process bytes as float
-                value = self.bytes2float(self.payload[domain_shift:domain_shift+e[2]], e[3])
-            elif e[1] == "D":#process bytes as double
-                value = self.bytes2double(self.payload[domain_shift:domain_shift+e[2]], e[3])
-            elif e[1] == "X":#process bytes as bitfield
-                value = self.bitfield(self.payload[domain_shift:domain_shift+e[2]], e[3])
             else:
-                raise TypeError("Unknown type " + e[1] + "!")
-            if i == None:
-                self.data[e[0]] = value
-            else:
-                if i == num:
-                    continue
-                self.data[name][i] = value
-                j = j + 1
-                if j == tags:
-                    i = i + 1
-                    j = 0
+                self.data[e[0]] = self.parseData(self.payload[domain_shift:domain_shift+e[2]], e)
+                domain_shift = domain_shift + e[2]
+
+            #if i == None:
+            #    self.data[e[0]] = value
+            #else:
+            #    if i == num:
+            #        continue
+            #    self.data[name][i] = value
+            #    j = j + 1
+            #    if j == tags:
+            #        i = i + 1
+            #        j = 0
 
 
 
 
-            domain_shift = domain_shift + e[2]
+
         #self.iTOW = self.bytes2uint(self.payload[0:4])
 
         print(self.data)
+
+    def parseData(self, bin, msg_struct):
+        if msg_struct[1] == "U":#process bytes as unsigned integer
+            return self.bytes2uint(bin, msg_struct[3])
+        elif msg_struct[1] == "S":#process bytes as signed integer
+            return self.bytes2sint(bin, msg_struct[3])
+        elif msg_struct[1] == "F":#process bytes as float
+            return self.bytes2float(bin, msg_struct[3])
+        elif msg_struct[1] == "D":#process bytes as double
+            return self.bytes2double(bin, msg_struct[3])
+        elif msg_struct[1] == "X":#process bytes as bitfield
+            return self.bitfield(bin, msg_struct[3])
+        else:
+            raise TypeError("Unknown type " + bin[1] + "!")
 
     def bytes2uint(self, bin, scale=1):
 
@@ -219,10 +227,11 @@ class UBX(object):
         return int.from_bytes(bin ,byteorder='little', signed=True)*scale
 
     def bytes2float(self, bin, scale=1):
-        return float.from_bytes(bin ,byteorder='little', signed=True)*scale
+        return unpack('f', bin)*scale
 
     def bytes2double(self, bin, scale=1):
-        return double.from_bytes(bin ,byteorder='little', signed=True)*scale
+        print(bin)
+        return unpack('d', bin)*scale
 
     def bitfield(self, bin, fields):
         bits = bitarray(endian='little')
@@ -231,12 +240,11 @@ class UBX(object):
         i = 0
         res = {}
         for f in fields:
-            print(f[0])
             if f[1] == 'S':
                 signed = True
             elif f[1] == 'U':
                 signed = False
-            res[b[0]] = int.from_bytes(bits[i:i+f[2]].tobytes(), byteorder='big', signed=signed)
+            res[f[0]] = int.from_bytes(bits[i:i+f[2]].tobytes(), byteorder='big', signed=signed)
             i = i + f[2]
 
         return res
@@ -389,33 +397,33 @@ class UBX_RXM_RAWX(UBX_RXM):
     )),
     ("version", "U", 1, 1),
     ("reserved", "U", 1, 1),
-    ("repeat", "numMeas", "measurements", 14),
-    ("prMes", "D", 8, 1),
-    ("cpMes", "D", 8, 1),
-    ("doMes", "F", 4, 1),
-    ("gnssId", "U", 1, 1),
-    ("svId", "U", 1, 1),
-    ("sigId", "U", 1, 1),
-    ("freqId", "U", 1, 1),
-    ("locktime", "U", 2, 1),
-    ("cno", "U", 1, 1),
-    ("prStdev", "X", 1, (
-        ("prStd", "U", 4),
-        ("reserved", "U", 4)
-    )),
-    ("doStdev", "X", 1, (
-        ("cpStd", "U", 4),
-        ("reserved", "U", 4)
-    )),
-    ("trkStat", "X", 1, (
-        ("prValid", "U", 1),
-        ("cpValid", "U", 1),
-        ("halfCyc", "U", 1),
-        ("subhalfCyc", "U", 1),
-        ("reserved", "U", 4)
-    )),
-    ("reserved", "U", 1, 1),
-    ("stop,")
+    ("repeat", "numMeas", "measurements", (
+        ("prMes", "D", 8, 1),
+        ("cpMes", "D", 8, 1),
+        ("doMes", "F", 4, 1),
+        ("gnssId", "U", 1, 1),
+        ("svId", "U", 1, 1),
+        ("sigId", "U", 1, 1),
+        ("freqId", "U", 1, 1),
+        ("locktime", "U", 2, 1),
+        ("cno", "U", 1, 1),
+        ("prStdev", "X", 1, (
+            ("prStd", "U", 4),
+            ("reserved", "U", 4)
+        )),
+        ("doStdev", "X", 1, (
+            ("cpStd", "U", 4),
+            ("reserved", "U", 4)
+        )),
+        ("trkStat", "X", 1, (
+            ("prValid", "U", 1),
+            ("cpValid", "U", 1),
+            ("halfCyc", "U", 1),
+            ("subhalfCyc", "U", 1),
+            ("reserved", "U", 4)
+        )),
+        ("reserved", "U", 1, 1),
+    ))
     ]
 
 
