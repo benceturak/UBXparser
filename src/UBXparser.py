@@ -30,7 +30,7 @@ class UBXparser(object):
                     started = True
                     counter = 0
                     msglen = int.from_bytes(bin[i+4:i+6] ,byteorder='little', signed=False)+8
-                    print(msglen)
+                    #print(msglen)
                     msg = b''
 
             if started:

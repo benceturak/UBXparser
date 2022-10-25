@@ -100,7 +100,6 @@ class UBXmessage(object):
                     if i[0] == kwargs['bin'][3:4]:
                         try:
                             a = eval("UBX_" + c[1]  + "_" + i[1] + "(**kwargs)")
-                            print(a.bin)
                         except NameError as er:
                             print(er)
 
@@ -110,8 +109,8 @@ class UBX(object):
 
     def __init__(self, **kwargs):
         self.data = {}
-        print("XXXXXXXXXXXXXXXXXXX")
-        print(self.data)
+        #print("XXXXXXXXXXXXXXXXXXX")
+        #print(self.data)
         bin = False
         for k, val in kwargs.items():
             if k == "bin":
@@ -125,9 +124,9 @@ class UBX(object):
                 self.len = self.bytes2uint(self.bin[4:6])
                 self.payload = self.bin[6:6+self.len]
                 self.cs = self.bin[6+self.len:6+self.len+2]
-                print("CHECKSUM")
-                print(self._checksum(self.bin[2:6+self.len]))
-                print(self.cs)
+                #print("CHECKSUM")
+                #print(self._checksum(self.bin[2:6+self.len]))
+                #print(self.cs)
                 if self.cs == self._checksum(self.bin[2:6+self.len]):
                     self.decode()
                 else:
@@ -161,27 +160,37 @@ class UBX(object):
         j = None
 
         for e in self.payload_struct:
+            #print(e)
+
             if e[0] == "reserved":
+                #print(e[2])
                 domain_shift = domain_shift + e[2]
-            if e[0] == "repeat":
+            elif e[0] == "repeat":
 
 
                 i = 0
                 j = 0
                 name = e[2]
-                print("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
                 ##print(self.data)
                 num = self.data[e[1]]
                 self.data[name] = []
 
                 self.data[e[2]] = []
+                data = {}
                 while num > 0:
+                    print("REPEAT:")
                     for sub in e[3]:
-                        self.data[e[2]].append(self.parseData(self.payload[domain_shift:domain_shift+sub[2]], sub))
+                        print(domain_shift)
+                        print(sub)
+                        if sub[0] != "reserved":
+                            data[sub[0]] = self.parseData(self.payload[domain_shift:domain_shift+sub[2]], sub)
                         domain_shift = domain_shift + sub[2]
-                        num = num - 1
-                continue
+                    num = num - 1
+                    print("REPEAT_END")
+                    self.data[e[2]].append(data)
             else:
+                #print("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXx")
+                #print(self.parseData(self.payload[domain_shift:domain_shift+e[2]], e))
                 self.data[e[0]] = self.parseData(self.payload[domain_shift:domain_shift+e[2]], e)
                 domain_shift = domain_shift + e[2]
 
@@ -198,10 +207,16 @@ class UBX(object):
 
 
 
-
+        print(domain_shift)
 
         #self.iTOW = self.bytes2uint(self.payload[0:4])
 
+
+
+        print(len(self.payload))
+        print(domain_shift)
+        print(self.payload[domain_shift:])
+        print(self.cs)
         print(self.data)
 
     def parseData(self, bin, msg_struct):
@@ -216,6 +231,7 @@ class UBX(object):
         elif msg_struct[1] == "X":#process bytes as bitfield
             return self.bitfield(bin, msg_struct[3])
         else:
+            print(bin)
             raise TypeError("Unknown type " + bin[1] + "!")
 
     def bytes2uint(self, bin, scale=1):
@@ -227,11 +243,10 @@ class UBX(object):
         return int.from_bytes(bin ,byteorder='little', signed=True)*scale
 
     def bytes2float(self, bin, scale=1):
-        return unpack('f', bin)*scale
+        return unpack('f', bin)[0]*scale
 
     def bytes2double(self, bin, scale=1):
-        print(bin)
-        return unpack('d', bin)*scale
+        return unpack('d', bin)[0]*scale
 
     def bitfield(self, bin, fields):
         bits = bitarray(endian='little')
@@ -242,9 +257,12 @@ class UBX(object):
         for f in fields:
             if f[1] == 'S':
                 signed = True
+                res[f[0]] = int.from_bytes(bits[i:i+f[2]].tobytes(), byteorder='big', signed=True)
             elif f[1] == 'U':
                 signed = False
-            res[f[0]] = int.from_bytes(bits[i:i+f[2]].tobytes(), byteorder='big', signed=signed)
+                res[f[0]] = int.from_bytes(bits[i:i+f[2]].tobytes(), byteorder='big', signed=False)
+            elif f[1] == 'R':
+                int.from_bytes(bits[i:i+f[2]].tobytes(), byteorder='big', signed=True)
             i = i + f[2]
 
         return res
@@ -393,10 +411,10 @@ class UBX_RXM_RAWX(UBX_RXM):
     ("recStat", "X", 1, (
         ("leapSec", "U", 1),
         ("clkReset", "U", 1),
-        ("reserved", "U", 6)
+        ("reserved", "R", 6)
     )),
     ("version", "U", 1, 1),
-    ("reserved", "U", 1, 1),
+    ("reserved", "R", 2, 1),
     ("repeat", "numMeas", "measurements", (
         ("prMes", "D", 8, 1),
         ("cpMes", "D", 8, 1),
@@ -409,20 +427,24 @@ class UBX_RXM_RAWX(UBX_RXM):
         ("cno", "U", 1, 1),
         ("prStdev", "X", 1, (
             ("prStd", "U", 4),
-            ("reserved", "U", 4)
+            ("reserved", "R", 4)
+        )),
+        ("cpStdev", "X", 1, (
+            ("cpStd", "U", 4),
+            ("reserved", "R", 4)
         )),
         ("doStdev", "X", 1, (
-            ("cpStd", "U", 4),
-            ("reserved", "U", 4)
+            ("doStd", "U", 4),
+            ("reserved", "R", 4)
         )),
         ("trkStat", "X", 1, (
             ("prValid", "U", 1),
             ("cpValid", "U", 1),
             ("halfCyc", "U", 1),
             ("subhalfCyc", "U", 1),
-            ("reserved", "U", 4)
+            ("reserved", "R", 4)
         )),
-        ("reserved", "U", 1, 1),
+        ("reserved", "R", 1, 1),
     ))
     ]
 
