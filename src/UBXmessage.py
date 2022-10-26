@@ -178,15 +178,11 @@ class UBX(object):
                 self.data[e[2]] = []
                 data = {}
                 while num > 0:
-                    print("REPEAT:")
                     for sub in e[3]:
-                        print(domain_shift)
-                        print(sub)
                         if sub[0] != "reserved":
                             data[sub[0]] = self.parseData(self.payload[domain_shift:domain_shift+sub[2]], sub)
                         domain_shift = domain_shift + sub[2]
                     num = num - 1
-                    print("REPEAT_END")
                     self.data[e[2]].append(data)
             else:
                 #print("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXx")
