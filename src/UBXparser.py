@@ -24,52 +24,33 @@ class UBXparser(object):
             raise TypeError("Invalid source type! Type must be queue!")
 
         bin = b''
-        counter = 0
         while True:
             if self.source.empty():
                 continue
             bin += self.source.get()
 
-            msg = b''
-            started = False
-            
-
-            counter = counter + 1
+            msg = b''   
             binLen = len(bin)
-            print("BINLEN")
-            print(binLen)
             for i in range(0, binLen):
-                print('A')
-                print(i)
 
                 if bin[i:i+2] == self.pream:
-                    print("START")
-                    started = True
                     counter = 0
-                    msglen = int.from_bytes(bin[i+4:i+6] ,byteorder='little', signed=False)+8
-                    #print(msglen)
+                    msglen = int.from_bytes(bin[i+4:i+6], byteorder='little', signed=False)+8
                     startIndex = i
                     endIndex = i + msglen
 
-                    print(endIndex)
-                    print(binLen)
 
                     if binLen >= endIndex:
                         msg = bin[startIndex:endIndex] 
                         bin = bin[endIndex:]
-                        print("STARTINDEX")
-                        print(startIndex)
                         try:
-                            UBXmsg = UBXmessage(bin=msg)
+                            yield UBXmessage(bin=msg)
+                            
                         except Exception as err:
                             print(msg)
-                            print(UBXmsg._checksum(msg[2:msgLen-2]))
-                            print(self.cs)
                             print(err)
 
                     else:
-
-                        print("BREAK")
                         break
 
 
@@ -89,7 +70,7 @@ class UBXparser(object):
                 if bin[i:i+2] == self.pream:
                     started = True
                     counter = 0
-                    msglen = int.from_bytes(bin[i+4:i+6] ,byteorder='little', signed=False)+8
+                    msglen = int.from_bytes(bin[i+4:i+6], byteorder='little', signed=False)+8
                     #print(msglen)
                     msg = b''
 
@@ -102,7 +83,7 @@ class UBXparser(object):
                 if counter == msglen:
                     started = False
                     try:
-                        UBXmsg = UBXmessage(bin=msg)
+                        yield UBXmessage(bin=msg)
                     except Exception as err:
                         print(err)
 
@@ -122,7 +103,7 @@ if __name__ == "__main__":
 
     def read_ser(ser):
         while True:
-            q.put(ser.read_until())
+            q.put(ser.read(10))
 
     _thread.start_new_thread(read_ser, (ser,))
 
@@ -133,4 +114,9 @@ if __name__ == "__main__":
     #    print(q.get())
 
     parser = UBXparser(q)
-    parser.readQueue()
+    for msg in parser.readQueue():
+        print(msg)
+        print(msg.data)
+        print(type(msg))
+        for i in msg.measurements:
+            print(i)
