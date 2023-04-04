@@ -25,7 +25,7 @@ class UBXmessage(object):
         (b'\x07', 'PVT'),
         (b'\x3C', 'RELPOSNED'),
         (b'\x10', 'RESETODO'),
-        (b'\x35', 'SET'),
+        (b'\x35', 'SAT'),
         (b'\x43', 'SIG'),
         (b'\x03', 'STATUS'),
         (b'\x3B', 'SVIN'),
@@ -497,7 +497,7 @@ class UBX_NAV_SAT(UBX_NAV):
         )),
     ))
     ]
-    
+
     @property
     def measurements(self):
         for data in self.data['measurements']:
