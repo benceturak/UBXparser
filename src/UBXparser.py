@@ -1,3 +1,7 @@
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(os.path.dirname(sys.path[0])), 'mobile_GNSS'))
+from common import util
 import _io
 import queue
 
@@ -23,24 +27,12 @@ class UBXparser(object):
             self.stopQueue = False
         else:
             raise TypeError("Invalid source type!")
-
-    def _checksum(self, msg):
-        cs_a = 0
-        cs_b = 0
-
-        for b in msg:
-            cs_a = (cs_a + b)%256
-            cs_b = (cs_b + cs_a)%256
-
-        return ((cs_b << 8) | cs_a).to_bytes(2,'little')
-
     
     def readQueue(self, shutFunc=lambda: False):
         if self.sourceType != "queue":
             raise TypeError("Invalid source type! Type must be queue!")
 
         bin = b''
-
         
         while True:
             if shutFunc():
@@ -48,13 +40,9 @@ class UBXparser(object):
                 break
             try:
                 bin += self.source.get(block=True, timeout=1)
-                logging.info(len(bin))
-                logging.info("bin+")
+                logging.debug("Read {} bytes".format(len(bin)))
             except queue.Empty as err:
-                pass
-                #print("Queue error!")
-                #logging.warning("Queue timeout! Queue is empty!")
-             #logging.info("GET FROM QUEUE")
+                continue
 
             binLen = len(bin) 
             lastMsgEnd = 0 
@@ -64,63 +52,41 @@ class UBXparser(object):
             for i in range(0, binLen):
                 if bin[i:i+2] != self.pream:
                     continue
-                msglen = int.from_bytes(bin[i+4:i+6], byteorder='little', signed=False)
+                msgLen = int.from_bytes(bin[i+4:i+6], byteorder='little', signed=False)
                 startIndex = i
-                endIndex = i + msglen + 8
+                endIndex = i + msgLen + 8
 
-                
                 if len(bin) < endIndex:
-                    logging.info("Message length error!")
-                    logging.info(msglen)
-                    logging.warning(startIndex)
-                    logging.info(bin[startIndex:endIndex] )
                     continue
-                msg = bin[startIndex:endIndex]  
-                
 
-                cs = msg[6+msglen:6+msglen+2]
+                msg = bin[startIndex:endIndex]
+                cs = msg[6+msgLen:6+msgLen+2]
 
-                if cs != self._checksum(msg[2:6+msglen]):
-                    logging.warning("_______________________")
-                    logging.warning(startIndex)
-                    logging.warning(msg)
-                    logging.warning(msg[2:6+msglen])
-                    logging.warning("Checksum")
-                    logging.warning(self._checksum(msg[2:6+msglen]))
-                    logging.warning(cs)
-                    logging.warning(len(msg))
-
+                if cs != util.checksum(msg[2:6+msgLen]):
+                    logging.warning("Invalid checksum: {} instead of {} in msg of length {}/{}".format(
+                        util.bytesToHexStr(msg[msgLen-2:msgLen]),
+                        util.bytesToHexStr(util.checksum(msg[2:6+msgLen])),
+                        msgLen,
+                        len(msg)
+                        ))
                     continue
-                logging.info("OK")
+
+                logging.debug("MSG OK, determining type...")
                 
                 try:
                     
                     ubxMsg = UBXmessage.UBXmessage(bin=msg)
-                    logging.info("Msg received:"+str(ubxMsg))
-                    try:
-                        logging.info(ubxMsg.getEpoch())
-                    except:
-                        pass
-                    if isinstance(ubxMsg, UBXmessage.UBX_NAV_EOE):
-                        print(ubxMsg.data)
+                    logging.info("Msg received: {} at {}".format(str(ubxMsg), ubxMsg.getEpoch()))
                     lastMsgEnd = endIndex
-                    logging.info(lastMsgEnd)
                     yield ubxMsg
-                except UBXmessage.MessageType:
-                    logging.error(err)
-                    logging.info(msg)
+                except UBXmessage.MessageType as err:
+                    logging.error("MsgType error ({}) while parsing:".format(err, util.bytesToHexStr(msg)))
                 except Exception as err:
-                    logging.warning(err)
-                    logging.info(msg)
-                    print(err)
-                    
+                    logging.error("Error ({}) while parsing:".format(err, util.bytesToHexStr(msg)))
                             
-            logging.info(lastMsgEnd)
-            
             bin = bin[lastMsgEnd:]
-            logging.info(bin)
-            logging.info("Bin reload------------------------------------------------------------")
-        print("ReadQueue stops!")
+
+        logging.info("Parser queue reader stopped")
 
     def readFile(self):
         if self.sourceType != "file":
@@ -130,33 +96,29 @@ class UBXparser(object):
         msg = b''   
         binLen = len(bin)
 
-
-
-
-
         for i in range(0, binLen):
 
             if bin[i:i+2] == self.pream:
-                msglen = int.from_bytes(bin[i+4:i+6], byteorder='little', signed=False)
+                msgLen = int.from_bytes(bin[i+4:i+6], byteorder='little', signed=False)
                 startIndex = i
-                endIndex = i + msglen + 8
+                endIndex = i + msgLen + 8
 
                 if len(bin) < endIndex:
                     logging.info("Message length error!")
-                    logging.info(msglen)
+                    logging.info(msgLen)
                     logging.info(bin[startIndex:endIndex] )
                     continue
                 msg = bin[startIndex:endIndex]  
                 lastMsgEnd = endIndex
 
-                cs = msg[6+msglen:6+msglen+2]
+                cs = msg[6+msgLen:6+msgLen+2]
 
-                if cs != self._checksum(msg[2:6+msglen]):
+                if cs != util.checksum(msg[2:6+msgLen]):
                     logging.warning("_______________________")
                     logging.warning(msg)
-                    logging.warning(msg[2:6+msglen])
+                    logging.warning(msg[2:6+msgLen])
                     logging.warning("Checksum")
-                    logging.warning(self._checksum(msg[2:6+msglen]))
+                    logging.warning(util.checksum(msg[2:6+msgLen]))
                     logging.warning(cs)
                     logging.warning(len(msg))
 
@@ -167,9 +129,9 @@ class UBXparser(object):
                     ubxMsg = UBXmessage.UBXmessage(bin=msg)
                     logging.info("Msg received:"+str(ubxMsg))
                     lastMsgEnd = endIndex
-                    print(type(ubxMsg))
-                    if isinstance(ubxMsg, UBXmessage.UBX_NAV_EOE):
-                        print(ubxMsg.data)
+                    #print(type(ubxMsg))
+                    #if isinstance(ubxMsg, UBXmessage.UBX_NAV_EOE):
+                        #print(ubxMsg.data)
                     yield ubxMsg
                 except UBXmessage.MessageType:
                     logging.error(err)
@@ -177,7 +139,7 @@ class UBXparser(object):
                 except Exception as err:
                     logging.warning(err)
                     logging.info(msg)
-                    print(err)
+                    #print(err)
 
                 #else:
                 #    print("msg length")
@@ -189,9 +151,9 @@ class UBXparser(object):
         for i in range(0, binLen):
 
             if bin[i:i+2] == self.pream:
-                msglen = int.from_bytes(bin[i+4:i+6], byteorder='little', signed=False)+8
+                msgLen = int.from_bytes(bin[i+4:i+6], byteorder='little', signed=False)+8
                 startIndex = i
-                endIndex = i + msglen
+                endIndex = i + msgLen
 
 
                 if len(bin) >= endIndex:
@@ -216,14 +178,8 @@ class UBXparser(object):
                     raise MessageLength("Message length error!")
         """
 
-
-
-
-
-
-
 if __name__ == "__main__":
-    fid = open("/home/bence/data/nmea_server/TES1/TES1_22496_23.UBX", 'br')
+    fid = open("d:/BME/_ur/2/proj/UBX_sample/TES1_22532_11.UBX", 'br')
     
     logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -246,10 +202,10 @@ if __name__ == "__main__":
     #    print(q.get())
 
     parser = UBXparser(fid)
-    for msg in parser.readFile():
+    #for msg in parser.readFile():
 
-        if isinstance(msg, UBXmessage.UBX_NAV_STATUS):
-            print(msg.data)
+        #if isinstance(msg, UBXmessage.UBX_NAV_STATUS):
+            #print(msg.data)
         #try:
         #    if isinstance(msg, UBXmessage.UBX_NAV_HPPOSLLH):
         #        print(msg.data)

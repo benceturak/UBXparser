@@ -1,3 +1,7 @@
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(os.path.dirname(sys.path[0])), 'mobile_GNSS'))
+from common import util
 from bitarray import bitarray
 from struct import pack, unpack
 import logging
@@ -168,7 +172,7 @@ class UBX(object):
 
 
 
-                if self.cs == self._checksum(self.bin[2:6+self.len]):
+                if self.cs == util.checksum(self.bin[2:6+self.len]):
                     self.decode()
                 else:
                     raise Exception("Checksum error!")
@@ -177,19 +181,13 @@ class UBX(object):
         else:
             pass
 
-    def _checksum(self, msg):
-        cs_a = 0
-        cs_b = 0
-
-        for b in msg:
-            cs_a = (cs_a + b)%256
-            cs_b = (cs_b + cs_a)%256
-
-        return ((cs_b << 8) | cs_a).to_bytes(2,'little')
-
+    def getEpoch(self):
+        return (self.data.get('iTOW', 0) *10**(-3)) + (self.data.get('fTOW', 0) *10**(-9))
+    
     def encode(self):
         pass
         #print()
+
     def decode(self):
         domain_shift = 0
         i = None
@@ -284,6 +282,9 @@ class UBX(object):
             i = i + f[2]
 
         return res
+    
+    def __str__(self):
+        return type(self).__qualname__
 
 class UBX_UNKNOWN(UBX):
     pass
@@ -329,9 +330,6 @@ class UBX_NAV_EOE(UBX_NAV):
     payload_struct = [
     ("iTOW", "U", 4, 1)
     ]
-
-    def getEpoch(self):
-        return self.data['iTOW']/1000
 
 class UBX_NAV_GEOFENCE(UBX_NAV):
 
@@ -384,9 +382,6 @@ class UBX_NAV_HPPOSLLH(UBX_NAV):
     ("vAcc", "U", 4, 0.1)
     ]
 
-    def getEpoch(self):
-        return self.data['iTOW']/1000
-
 class UBX_NAV_STATUS(UBX_NAV):
 
     payload_struct = [
@@ -414,8 +409,6 @@ class UBX_NAV_STATUS(UBX_NAV):
     ("ttff", "U", 4, 1),
     ("msss", "U", 4, 1)
     ]
-    def getEpoch(self):
-        return self.data['iTOW']/1000
 
 class UBX_NAV_TIMEGPS(UBX_NAV):
 
@@ -431,9 +424,6 @@ class UBX_NAV_TIMEGPS(UBX_NAV):
     )),
     ("tAcc", "U", 4, 1)
     ]
-
-    def getEpoch(self):
-        return (self.data['iTOW'] *10**(-3)) + (self.data['fTOW'] *10**(-9))
 
 #class UBX_NAV_POSECEF(UBX_NAV):
 
