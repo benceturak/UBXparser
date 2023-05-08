@@ -95,8 +95,16 @@ class UBXparser(object):
 
         msg = b''   
         binLen = len(bin)
+        print("Parsing binary file (size: {}B)".format(binLen))
+        lastLoggedStep = 0
+        logEveryNthPercent = 10
+        logEveryNthByte = binLen / logEveryNthPercent
 
         for i in range(0, binLen):
+
+            if i > logEveryNthByte * (lastLoggedStep + 1):
+                lastLoggedStep += 1
+                print("{}%".format(lastLoggedStep * logEveryNthPercent))
 
             if bin[i:i+2] == self.pream:
                 msgLen = int.from_bytes(bin[i+4:i+6], byteorder='little', signed=False)
@@ -114,6 +122,7 @@ class UBXparser(object):
                 cs = msg[6+msgLen:6+msgLen+2]
 
                 if cs != util.checksum(msg[2:6+msgLen]):
+                    '''
                     logging.warning("_______________________")
                     logging.warning(msg)
                     logging.warning(msg[2:6+msgLen])
@@ -121,7 +130,7 @@ class UBXparser(object):
                     logging.warning(util.checksum(msg[2:6+msgLen]))
                     logging.warning(cs)
                     logging.warning(len(msg))
-
+                    '''
                     continue
                 logging.info("OK")
                 try:
@@ -178,10 +187,10 @@ class UBXparser(object):
                     raise MessageLength("Message length error!")
         """
 
-if __name__ == "__main__":
-    fid = open("d:/BME/_ur/2/proj/UBX_sample/TES1_22532_11.UBX", 'br')
+#if __name__ == "__main__":
+    #fid = open("d:/BME/_ur/2/proj/UBX_sample/TES1_22532_11.UBX", 'br')
     
-    logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+    #logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
     #ser = serial.Serial("/dev/ttyACM0", 115200)
 
@@ -201,7 +210,7 @@ if __name__ == "__main__":
     #    print('AAA')
     #    print(q.get())
 
-    parser = UBXparser(fid)
+    #parser = UBXparser(fid)
     #for msg in parser.readFile():
 
         #if isinstance(msg, UBXmessage.UBX_NAV_STATUS):

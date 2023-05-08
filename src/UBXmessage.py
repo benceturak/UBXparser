@@ -494,6 +494,9 @@ class UBX_NAV_SAT(UBX_NAV):
             yield data
 
 
+    def __str__(self):
+        return type(self).__qualname__ + " RTCM: " + str(self.data['measurements'][0]['flags']['rtcmCorrUsed'])
+
 #class UBX_NAV_HPPOSLLH(UBX_NAV):
 #    pass
 
