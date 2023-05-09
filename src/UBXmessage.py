@@ -1,3 +1,7 @@
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(os.path.dirname(sys.path[0])), 'mobile_GNSS'))
+from common import util
 from bitarray import bitarray
 from struct import pack, unpack
 import logging
@@ -25,7 +29,7 @@ class UBXmessage(object):
         (b'\x07', 'PVT'),
         (b'\x3C', 'RELPOSNED'),
         (b'\x10', 'RESETODO'),
-        (b'\x35', 'SET'),
+        (b'\x35', 'SAT'),
         (b'\x43', 'SIG'),
         (b'\x03', 'STATUS'),
         (b'\x3B', 'SVIN'),
@@ -168,7 +172,7 @@ class UBX(object):
 
 
 
-                if self.cs == self._checksum(self.bin[2:6+self.len]):
+                if self.cs == util.checksum(self.bin[2:6+self.len]):
                     self.decode()
                 else:
                     raise Exception("Checksum error!")
@@ -177,18 +181,13 @@ class UBX(object):
         else:
             pass
 
-    def _checksum(self, msg):
-        cs_a = 0
-        cs_b = 0
-
-        for b in msg:
-            cs_a = (cs_a + b)%256
-            cs_b = (cs_b + cs_a)%256
-
-        return ((cs_b << 8) | cs_a).to_bytes(2,'little')
-
+    def getEpoch(self):
+        return (self.data.get('iTOW', 0) *10**(-3)) + (self.data.get('fTOW', 0) *10**(-9))
+    
     def encode(self):
-        print()
+        pass
+        #print()
+
     def decode(self):
         domain_shift = 0
         i = None
@@ -247,7 +246,7 @@ class UBX(object):
         elif msg_struct[1] == "CH":#process bytes as bitfield
             return bin.decode('ascii')
         else:
-            print(bin)
+            #print(bin)
             raise TypeError("Unknown type " + bin[1] + "!")
 
     def bytes2uint(self, bin, scale=1):
@@ -283,6 +282,9 @@ class UBX(object):
             i = i + f[2]
 
         return res
+    
+    def __str__(self):
+        return type(self).__qualname__
 
 class UBX_UNKNOWN(UBX):
     pass
@@ -328,9 +330,6 @@ class UBX_NAV_EOE(UBX_NAV):
     payload_struct = [
     ("iTOW", "U", 4, 1)
     ]
-
-    def getEpoch(self):
-        return self.data['iTOW']/1000
 
 class UBX_NAV_GEOFENCE(UBX_NAV):
 
@@ -383,9 +382,6 @@ class UBX_NAV_HPPOSLLH(UBX_NAV):
     ("vAcc", "U", 4, 0.1)
     ]
 
-    def getEpoch(self):
-        return self.data['iTOW']/1000
-
 class UBX_NAV_STATUS(UBX_NAV):
 
     payload_struct = [
@@ -413,8 +409,6 @@ class UBX_NAV_STATUS(UBX_NAV):
     ("ttff", "U", 4, 1),
     ("msss", "U", 4, 1)
     ]
-    def getEpoch(self):
-        return self.data['iTOW']/1000
 
 class UBX_NAV_TIMEGPS(UBX_NAV):
 
@@ -430,9 +424,6 @@ class UBX_NAV_TIMEGPS(UBX_NAV):
     )),
     ("tAcc", "U", 4, 1)
     ]
-
-    def getEpoch(self):
-        return (self.data['iTOW'] *10**(-3)) + (self.data['fTOW'] *10**(-9))
 
 #class UBX_NAV_POSECEF(UBX_NAV):
 
@@ -460,6 +451,51 @@ class UBX_NAV_POSLLH(UBX_NAV):
     ]
 
 
+class UBX_NAV_SAT(UBX_NAV):
+
+    payload_struct = [
+    ("iTOW", "U", 4, 1),
+    ("version", "U", 1, 1),
+    ("numSvs", "U", 1, 1),
+    ("reserved", "R", 2, 1),
+    ("repeat", "numSvs", "measurements", (
+        ("gnssId", "U", 1, 1),
+        ("svId", "U", 1, 1),
+        ("cno", "U", 1, 1),
+        ("elev", "S", 1, 1),
+        ("azim", "S", 2, 1),
+        ("prRes", "S", 2, 0.1),
+        ("flags", "X", 4, (
+            ("qualityInd", "U", 3, 1),
+            ("svUsed", "U", 1, 1),
+            ("health", "U", 2, 1),
+            ("diffCorr", "U", 1, 1),
+            ("smoothed", "U", 1, 1),
+            ("orbitSource", "U", 3, 1),
+            ("ephAvail", "U", 1, 1),
+            ("almAvail", "U", 1, 1),
+            ("anoAvail", "U", 1, 1),
+            ("aopAvail", "U", 1, 1),
+            ("sbasCorrUsed", "U", 1, 1),
+            ("rtcmCorrUsed", "U", 1, 1),
+            ("slasCorrUsed", "U", 1, 1),
+            ("spartnCorrUsed", "U", 1, 1),
+            ("prCorrUsed", "U", 1, 1),
+            ("crCorrUsed", "U", 1, 1),
+            ("doCorrUsed", "U", 1, 1),
+            ("clasCorrUsed", "U", 1, 1),
+        )),
+    ))
+    ]
+
+    @property
+    def measurements(self):
+        for data in self.data['measurements']:
+            yield data
+
+
+    def __str__(self):
+        return type(self).__qualname__ + " RTCM: " + str(self.data['measurements'][0]['flags']['rtcmCorrUsed'])
 
 #class UBX_NAV_HPPOSLLH(UBX_NAV):
 #    pass
@@ -561,9 +597,6 @@ class UBX_CFG(UBX):
 
 
 class UBX_CFG_GETVAL(UBX_RXM):
-
-    
-
     payload_struct = [
     ("version", "U", 1, 1),
     ("layer", "U", 1, 1),
@@ -602,9 +635,6 @@ class UBX_SEC_UNIQID(UBX_SEC):
     ("uniqueId5", "U", 1, 1)
     ]
 
-
-
-
 class UBX_CUS(UBX):
 
     #class_byte = 0x01
@@ -632,16 +662,5 @@ if __name__ == "__main__":
     aaa = b'\xb5b\x01\x14$\x00\x00\x00\x00\x00`\x9e0\x08]\r\\\x0b\xaf\x81L\x1c\xd61\x02\x00/\x98\x01\x00\xe4\x0c\x01\x01\xb9\xb0\x04\x00$x\xb5b\x02\x15'
     aaa = b'\xb5b\x02\x15\x90\x01\xd1"\xdb\xf9_o\x02A\xcb\x08\x12\x0c\x01\x01 N\xc6\xe7=\xc2\x16\x99tA\xff\x11ZW\x91\x0f\x9bA\xae1,E\x00\x08\x00\x00\xf4\xfb,\x04\x01\x06\x07\x00\xc8\xd0u|\xd9{rA\x1cN\x85`\x82H\x98A\xe8\xc2\x8bD\x00\x1b\x00\x00\xf4\xfb/\x03\x01\x06\x0f\x00\x0eR\xd3Ep5uAd\xab\xab\xc0 \x9c\x9bA\xaa9\xfcD\x03\x0c\x00\x00\xf4\xfb)\x03\x02\x06\x0f\x003\xa13(\x94\x8csA\xfd\xeb.\xf3M\r\x9aA\xcc1\x18D\x06\x0e\x00\x00\xf4\xfb-\x05\x02\x06\x07\x00\x0b\xd4\xaat\xdd\xc9qA\x93\xf9B\xe9\x06\xca\x97A\x81d\xf7C\x06\x17\x00\n\xf4\xfb(\x05\x02\x07\x07\x00=\x87V\xe6w3tALR\t\xf1\x8a\x01\x9bA\xbb\xd70E\x06\x18\x00\t\xf4\xfb(\x05\x02\x07\x07\x00\xbe\xa7\x1f\xado5uA\x93e\xf4\xb8\x85Y\x95A\x0c\x07\xc3D\x03\x0c\x02\x00\xf4\xfb&\x04\x03\x07\x07\x00\x04\xeeg\xb6\x16\x99tA/\x0e\xd6\xf5\x1a\x16\x95A\xcd.\x06E\x00\x08\x03\x00\xf4\xfb\x1f\x06\x06\t\x07\x00\n\xe0AO\xd9{rAsK\x11\n\x0f\x0c\x01\x005\x90\x90\xdaw3tA\xeawh\xef2\x01\x95Az\x9a\tE\x06\x18\x02\t\xf4\xfb\x1f\x07\x06\t\x0f\x00"\x1eN\x8e\xe7FvA\xb6\x824|\x9d%\x97A`}0E\x06\x0f\x02\x07\x00\x00\x13\x0b\x0f\x0c\x01\x00\xc8\xb5\xb5b\x01\x14$\x00\x00\x00\x00\x00\xe0a\x00\t:}[\x0be8M\x1c0\xb4\x02\x00\x83\x1a\x02\x00\xf0\xd9\x00\x00W\xac\x04\x00\xa8\x8e\x04\x005\r\xb5b\x01\x03'
 
-
-
     msg = UBXmessage(bin=aaa)
-    print(msg.data)
-
-
-
-
-
-
-
-
-#
+    #print(msg.data)
