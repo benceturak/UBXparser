@@ -33,6 +33,7 @@ class UBXparser(object):
             raise TypeError("Invalid source type! Type must be queue!")
 
         bin = b''
+        msgId = 0
         
         while True:
             if shutFunc():
@@ -76,7 +77,7 @@ class UBXparser(object):
                 try:
                     
                     ubxMsg = UBXmessage.UBXmessage(bin=msg)
-                    logging.info("Msg received: {} at {}".format(str(ubxMsg), ubxMsg.getEpoch()))
+                    logging.info("[{}]: {}".format(round(ubxMsg.getEpoch()), str(ubxMsg)))
                     lastMsgEnd = endIndex
                     yield ubxMsg
                 except UBXmessage.MessageType as err:

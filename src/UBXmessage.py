@@ -247,7 +247,7 @@ class UBX(object):
             return bin.decode('ascii')
         else:
             #print(bin)
-            raise TypeError("Unknown type " + bin[1] + "!")
+            raise TypeError("Unknown type: " + msg_struct[1])
 
     def bytes2uint(self, bin, scale=1):
 
@@ -300,7 +300,6 @@ class UBX_NAV(UBX):
     def _preprocess(self, **kwargs):
         for c in self.IDs:
             if c[0] == self.bin[3:4]:
-
                 return eval("UBX_NAV_" + c[1] + "(**kwargs)")
 
 class UBX_NAV_CLOCK(UBX_NAV):
@@ -495,7 +494,45 @@ class UBX_NAV_SAT(UBX_NAV):
 
 
     def __str__(self):
-        return type(self).__qualname__ + " RTCM: " + str(self.data['measurements'][0]['flags']['rtcmCorrUsed'])
+        return type(self).__qualname__ + " visible sats: " + str(len(self.data['measurements']))
+
+
+class UBX_NAV_SIG(UBX_NAV):
+
+    payload_struct = [
+    ("iTOW", "U", 4, 1),
+    ("version", "U", 1, 1),
+    ("numSigs", "U", 1, 1),
+    ("reserved", "R", 2, 1),
+    ("repeat", "numSigs", "measurements", (
+        ("gnssId", "U", 1, 1),
+        ("svId", "U", 1, 1),
+        ("sigId", "U", 1, 1),
+        ("freqId", "U", 1, 1),
+        ("prRes", "S", 2, 1),
+        ("cno", "U", 1, 1),
+        ("qualityInd", "U", 1, 1),
+        ("corrSource", "U", 1, 1),
+        ("ionoModel", "U", 1, 1),
+        ("sigFlags", "X", 2, (
+            ("health", "U", 2, 1),
+            ("prSmoothed", "U", 1, 1),
+            ("prUsed", "U", 1, 1),
+            ("crUsed", "U", 1, 1),
+            ("doUsed", "U", 1, 1),
+            ("prCorrUsed", "U", 1, 1),
+            ("crCorrUsed", "U", 1, 1),
+            ("doCorrUsed", "U", 1, 1),
+        )),
+        ("reserved1", "U", 4, 1),
+    ))
+    ]
+    
+    @property
+    def measurements(self):
+        for data in self.data['measurements']:
+            yield data
+            
 
 #class UBX_NAV_HPPOSLLH(UBX_NAV):
 #    pass
