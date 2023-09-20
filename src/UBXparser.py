@@ -1,5 +1,7 @@
 import sys
 import os
+print(os.path.join(os.path.dirname(os.path.dirname(sys.path[0]))))
+print(os.path.join(os.path.dirname(os.path.dirname(sys.path[0])), 'mobile_GNSS'))
 sys.path.append(os.path.join(os.path.dirname(os.path.dirname(sys.path[0])), 'mobile_GNSS'))
 from common import util
 import _io
@@ -117,7 +119,7 @@ class UBXparser(object):
                     logging.info(msgLen)
                     logging.info(bin[startIndex:endIndex] )
                     continue
-                msg = bin[startIndex:endIndex]  
+                msg = bin[startIndex:endIndex]
                 lastMsgEnd = endIndex
 
                 cs = msg[6+msgLen:6+msgLen+2]
@@ -135,7 +137,6 @@ class UBXparser(object):
                     continue
                 logging.info("OK")
                 try:
-                    
                     ubxMsg = UBXmessage.UBXmessage(bin=msg)
                     logging.info("Msg received:"+str(ubxMsg))
                     lastMsgEnd = endIndex
@@ -143,7 +144,7 @@ class UBXparser(object):
                     #if isinstance(ubxMsg, UBXmessage.UBX_NAV_EOE):
                         #print(ubxMsg.data)
                     yield ubxMsg
-                except UBXmessage.MessageType:
+                except UBXmessage.MessageType as err:
                     logging.error(err)
                     logging.info(msg)
                 except Exception as err:
@@ -188,10 +189,10 @@ class UBXparser(object):
                     raise MessageLength("Message length error!")
         """
 
-#if __name__ == "__main__":
-    #fid = open("d:/BME/_ur/2/proj/UBX_sample/TES1_22532_11.UBX", 'br')
-    
-    #logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+if __name__ == "__main__":
+    #fid = open("/home/bence/Downloads/COM4_200405_020642/COM4_200405_020642.ubx", 'br')
+    fid = open("/home/bence/Downloads/COM11___9600.ubx", 'br')
+    logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
     #ser = serial.Serial("/dev/ttyACM0", 115200)
 
@@ -211,11 +212,11 @@ class UBXparser(object):
     #    print('AAA')
     #    print(q.get())
 
-    #parser = UBXparser(fid)
-    #for msg in parser.readFile():
-
-        #if isinstance(msg, UBXmessage.UBX_NAV_STATUS):
-            #print(msg.data)
+    parser = UBXparser(fid)
+    for msg in parser.readFile():
+        print('___________________________________')
+        if isinstance(msg, UBXmessage.UBX_TRK_MEAS):
+            print(msg.data)
         #try:
         #    if isinstance(msg, UBXmessage.UBX_NAV_HPPOSLLH):
         #        print(msg.data)
