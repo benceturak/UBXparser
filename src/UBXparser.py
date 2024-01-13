@@ -3,7 +3,7 @@ import os
 print(os.path.join(os.path.dirname(os.path.dirname(sys.path[0]))))
 print(os.path.join(os.path.dirname(os.path.dirname(sys.path[0])), 'mobile_GNSS'))
 sys.path.append(os.path.join(os.path.dirname(os.path.dirname(sys.path[0])), 'mobile_GNSS'))
-from common import util
+import util
 import _io
 import queue
 
@@ -64,14 +64,14 @@ class UBXparser(object):
 
                 msg = bin[startIndex:endIndex]
                 cs = msg[6+msgLen:6+msgLen+2]
-
                 if cs != util.checksum(msg[2:6+msgLen]):
                     logging.warning("Invalid checksum: {} instead of {} in msg of length {}/{}".format(
-                        util.bytesToHexStr(msg[msgLen-2:msgLen]),
+                        util.bytesToHexStr(cs),
                         util.bytesToHexStr(util.checksum(msg[2:6+msgLen])),
                         msgLen,
                         len(msg)
                         ))
+                    lastMsgEnd = endIndex
                     continue
 
                 logging.debug("MSG OK, determining type...")
@@ -190,8 +190,10 @@ class UBXparser(object):
         """
 
 if __name__ == "__main__":
+    import numpy as np
     #fid = open("/home/bence/Downloads/COM4_200405_020642/COM4_200405_020642.ubx", 'br')
-    fid = open("/home/bence/Downloads/COM11___9600.ubx", 'br')
+    #fid = open("/home/pi/refr_test/COM5___38400_230527_114251.ubx", 'br')
+    fid = open("/home/bence/data/nmea_server/TEST_22481_06.UBX", 'br')
     logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
     #ser = serial.Serial("/dev/ttyACM0", 115200)
@@ -215,13 +217,13 @@ if __name__ == "__main__":
     parser = UBXparser(fid)
     for msg in parser.readFile():
         print('___________________________________')
-        if isinstance(msg, UBXmessage.UBX_TRK_MEAS):
-            print(msg.data)
-        #try:
-        #    if isinstance(msg, UBXmessage.UBX_NAV_HPPOSLLH):
-        #        print(msg.data)
-        #except Exception as err:
-        #    print(err)
+
+        #print(msg.data)
+        try:
+            if isinstance(msg, UBXmessage.UBX_NAV_HPPOSLLH):
+                print(msg.lat*np.pi/180, msg.lon*np.pi/180, msg.height)
+        except Exception as err:
+            print(err)
         #print(msg.data)
         #print(type(msg))
         #for i in msg.measurements:
