@@ -508,7 +508,7 @@ class UBX_NAV_HPPOSLLH(UBX_NAV):
     ("version", "U", 1, 1),
     ("reserved", "R", 2, 1),
     ("flags", "X", 1, (
-        ("invalidL1h", "U", 1, 1),
+        ("invalidLlh", "U", 1, 1),
     )),
     ("iTOW", "U", 4, 1),
     ("lon", "S", 4, 10**-7),
