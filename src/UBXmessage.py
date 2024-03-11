@@ -585,6 +585,27 @@ class UBX_NAV_TIMEGPS(UBX_NAV):
     ("tAcc", "U", 4, 1)
     ]
 
+class UBX_NAV_TIMEUTC(UBX_NAV):
+
+    payload_struct = [
+    ("iTOW", "U", 4, 1),
+    ("tAcc", "U", 4, 1),
+    ("nano", "S", 4, 1),
+    ("year", "U", 2, 1),
+    ("month", "U", 1, 1),
+    ("day", "U", 1, 1),
+    ("hour", "U", 1, 1),
+    ("min", "U", 1, 1),
+    ("sec", "U", 1, 1),
+    ("valid", "X", 1, (
+        ("validTOW", "U", 1, 1),
+        ("validWKN", "U", 1, 1),
+        ("validUTC", "U", 1, 1),
+        ("reserved", "R", 1, 1),
+        ("utcStandard", "U", 5, 1)
+    ))
+    ]
+
 #class UBX_NAV_POSECEF(UBX_NAV):
 
 
