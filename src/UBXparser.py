@@ -1,7 +1,5 @@
 import sys
 import os
-print(os.path.join(os.path.dirname(os.path.dirname(sys.path[0]))))
-print(os.path.join(os.path.dirname(os.path.dirname(sys.path[0])), 'mobile_GNSS'))
 sys.path.append(os.path.join(os.path.dirname(os.path.dirname(sys.path[0])), 'mobile_GNSS'))
 import util
 import _io
@@ -189,12 +187,94 @@ class UBXparser(object):
                     raise MessageLength("Message length error!")
         """
 
+    def readRAWX(self, gnss=None, sat=None, sig=None, mesType=None):
+        """
+            :param gnss: GNSS system identifier
+            :param sat: satellite identifier
+            :param sig: signal identifier
+            :param type: observation type [pseudo range, phase, cno, doppler]
+        """
+
+        import consts
+        import numpy as np
+
+        if self.sourceType == 'file':
+            gen = self.readFile()
+        elif self.sourceType == 'queue':
+            gen = self.readQueue()
+        else:
+            return 0
+        
+        res = {}
+
+
+        sigList = {}
+        for gId, system in consts.gnssID.items():
+            "gnss system filter"
+            if gnss == None:
+                pass
+            else:
+                if system not in gnss:
+                    continue
+                
+            for sId, sigName in consts.sigID[gId].items():
+
+                try:
+                    sigList[gId][sId] = sigName
+                except KeyError:
+                    sigList[gId] = {sId: sigName}
+
+        for msg in gen:
+            if not isinstance(msg, UBXmessage.UBX_RXM_RAWX):
+                continue
+
+
+            #print(msg.data)
+
+            #if mesType == None:
+            #    mesType = ['prMes', 'cpMes', 'doMes', 'cno']
+            #else:
+            #    return 0
+            
+            
+            for ms in msg.data['measurements']:
+                #print(consts.gnssID[ms['gnssId'][0]])
+                if not consts.gnssID[ms['gnssId']][0] in gnss:
+                    continue
+
+                PRN = consts.gnssID[ms['gnssId']][0] + str(ms['svId'])
+
+                row = np.array([[ms['prMes'], ms['cpMes'], ms['doMes'], ms['freqId'], ms['locktime'], ms['cno'], ms['prStdev']['prStd'], ms['cpStdev']['cpStd'], ms['doStdev']['doStd'], ms['trkStat']['prValid'], ms['trkStat']['cpValid'], ms['trkStat']['halfCyc'], ms['trkStat']['subhalfCyc']]])
+                
+                row = np.append([[msg.data["week"], msg.data["rcvTow"]]], row, axis=1)
+                #if ms['gnssId'] == 0 and PRN == "G23":
+                    #print(row)
+                #print(consts.sigID[ms['gnssId']][ms['sigId']])
+                    #print(res)
+                freq = consts.sigID[ms['gnssId']][ms['sigId']][0]
+                try:
+                    res[PRN][freq] = np.append(res[PRN][freq], row, axis=0)
+                except KeyError as err:
+                    try:
+                        res[PRN][freq] = row
+                    except KeyError:
+                        res[PRN] = {freq: row}
+
+
+        return res
+
+
+
+
+
+
+
 if __name__ == "__main__":
     import numpy as np
     #fid = open("/home/bence/Downloads/COM4_200405_020642/COM4_200405_020642.ubx", 'br')
     #fid = open("/home/pi/refr_test/COM5___38400_230527_114251.ubx", 'br')
-    fid = open("/home/bence/data/nmea_server/TEST_22481_06.UBX", 'br')
-    logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+    fid = open("/home/bence/talaj/talaj/ubx/down/SAT02_2024-10-08-18.ubx", 'br')
+    logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(levelname)s - %(message)s')
 
     #ser = serial.Serial("/dev/ttyACM0", 115200)
 
@@ -208,12 +288,12 @@ if __name__ == "__main__":
 
     #_thread.start_new_thread(read_ser, (ser,))
 
+    #parser = UBXparser(q)
 
-
-    #while True:
-    #    print('AAA')
-    #    print(q.get())
-
+    #for msg in parser.readQueue():
+    #    print(msg.bin)
+    
+    #exit()
     parser = UBXparser(fid)
     for msg in parser.readFile():
         print('___________________________________')
@@ -222,6 +302,8 @@ if __name__ == "__main__":
         try:
             if isinstance(msg, UBXmessage.UBX_NAV_HPPOSLLH):
                 print(msg.lat*np.pi/180, msg.lon*np.pi/180, msg.height)
+            if isinstance(msg, UBXmessage.UBX_NAV_SIG):
+                print(msg.data['numSigs'])
         except Exception as err:
             print(err)
         #print(msg.data)
