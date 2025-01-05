@@ -25,6 +25,10 @@ class UBXparser(object):
             self.source = source
             self.sourceType = "queue"
             self.stopQueue = False
+        elif isinstance(source, (list, tuple)):
+            self.source = source
+            self.sourceType = "list"
+
         else:
             raise TypeError("Invalid source type!")
     
@@ -90,9 +94,15 @@ class UBXparser(object):
         logging.info("Parser queue reader stopped")
 
     def readFile(self):
-        if self.sourceType != "file":
+        if self.sourceType == "file":
+            bin = self.source.read()
+        elif self.sourceType == "list":
+            bin = b''
+            for src in  self.source:
+                bin += src.read()
+        else:
             raise TypeError("Invalid source type! Type must be file!")
-        bin = self.source.read()
+        
 
         msg = b''   
         binLen = len(bin)
@@ -186,8 +196,10 @@ class UBXparser(object):
                     logging.info(bin)
                     raise MessageLength("Message length error!")
         """
+    def addRAWX(self, a):
+        pass
 
-    def readRAWX(self, gnss=None, sat=None, sig=None, mesType=None):
+    def readRAWX(self, gnss=None, sat=None, sig=None, mesType=None, removeDuplicated=True):
         """
             :param gnss: GNSS system identifier
             :param sat: satellite identifier
@@ -198,7 +210,7 @@ class UBXparser(object):
         import consts
         import numpy as np
 
-        if self.sourceType == 'file':
+        if self.sourceType == 'file' or self.sourceType == 'list':
             gen = self.readFile()
         elif self.sourceType == 'queue':
             gen = self.readQueue()
@@ -228,13 +240,6 @@ class UBXparser(object):
             if not isinstance(msg, UBXmessage.UBX_RXM_RAWX):
                 continue
 
-
-            #print(msg.data)
-
-            #if mesType == None:
-            #    mesType = ['prMes', 'cpMes', 'doMes', 'cno']
-            #else:
-            #    return 0
             
             
             for ms in msg.data['measurements']:
@@ -242,7 +247,7 @@ class UBXparser(object):
                 if not consts.gnssID[ms['gnssId']][0] in gnss:
                     continue
 
-                PRN = consts.gnssID[ms['gnssId']][0] + str(ms['svId'])
+                PRN = consts.gnssID[ms['gnssId']][0]+"{:02d}".format(ms['svId'])
 
                 row = np.array([[ms['prMes'], ms['cpMes'], ms['doMes'], ms['freqId'], ms['locktime'], ms['cno'], ms['prStdev']['prStd'], ms['cpStdev']['cpStd'], ms['doStdev']['doStd'], ms['trkStat']['prValid'], ms['trkStat']['cpValid'], ms['trkStat']['halfCyc'], ms['trkStat']['subhalfCyc']]])
                 
@@ -260,7 +265,14 @@ class UBXparser(object):
                     except KeyError:
                         res[PRN] = {freq: row}
 
-
+        #remove duplicated
+        if not removeDuplicated:
+            return res
+        #print(res)
+        for sat in res.keys():
+            for sig in res[sat].keys():
+                res[sat][sig] = np.unique(res[sat][sig], axis=0)
+                #res[sat][sig] = list(set(res[sat][sig]))
         return res
 
 
